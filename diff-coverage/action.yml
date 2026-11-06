@@ -1,0 +1,41 @@
+name: Diff coverage
+description: Fail when the lines a pull request changes are covered below a floor, using diff-cover on a JaCoCo or Cobertura XML report.
+inputs:
+  report:
+    description: Path of the coverage XML report.
+    required: true
+  compare-branch:
+    description: Branch to diff against, such as origin/main. The checkout needs full history.
+    required: true
+  src-roots:
+    description: Source roots, one per line or space-separated.
+    default: src/main/java
+  fail-under:
+    description: Minimum percentage of changed lines covered.
+    default: '80'
+  diff-cover-version:
+    description: Version of diff-cover, run with pipx.
+    default: '10.6.0'
+outputs:
+  passed:
+    description: 'true when the coverage floor is met.'
+    value: ${{ steps.cover.outputs.passed }}
+runs:
+  using: composite
+  steps:
+    - name: Check coverage of changed lines
+      id: cover
+      shell: bash
+      env:
+        REPORT: ${{ inputs.report }}
+        COMPARE_BRANCH: ${{ inputs.compare-branch }}
+        SRC_ROOTS: ${{ inputs.src-roots }}
+        FAIL_UNDER: ${{ inputs.fail-under }}
+        DIFF_COVER_VERSION: ${{ inputs.diff-cover-version }}
+      run: |
+        read -ra roots <<< "$SRC_ROOTS"
+        rc=0
+        pipx run --spec "diff-cover==${DIFF_COVER_VERSION}" diff-cover "$REPORT" \
+          --compare-branch="$COMPARE_BRANCH" --src-roots "${roots[@]}" --fail-under="$FAIL_UNDER" || rc=$?
+        if [ "$rc" -eq 0 ]; then echo 'passed=true' >> "$GITHUB_OUTPUT"; else echo 'passed=false' >> "$GITHUB_OUTPUT"; fi
+        exit "$rc"

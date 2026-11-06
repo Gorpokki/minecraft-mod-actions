@@ -1,0 +1,60 @@
+name: Server boot
+description: Boot a headless Minecraft server from a built jar, wait for the ready line, stop it, and check the log. Linux runners only.
+inputs:
+  server-dir:
+    description: Directory that holds the server and its mods folder. The start command runs here.
+    default: '.'
+  start-command:
+    description: Command that starts the server. It must read console commands from standard input.
+    default: ./run.sh nogui
+  timeout-seconds:
+    description: Seconds to wait for the ready line.
+    default: '600'
+  ready-pattern:
+    description: Fixed string that marks a finished start.
+    default: 'Done ('
+  fail-patterns:
+    description: Extended regular expression. A match anywhere in the log fails the step. Empty turns the check off.
+    default: 'Mixin apply .*failed|InvalidMixinException|MixinApplyError|Mixin transformation of .* failed|---- Minecraft Crash Report ----'
+  expect-pattern:
+    description: Extended regular expression the log must match. Empty turns the check off.
+    default: ''
+  log-file:
+    description: Log file name, relative to server-dir.
+    default: server.log
+outputs:
+  result:
+    description: ready, timeout or exited.
+    value: ${{ steps.boot.outputs.result }}
+  log-path:
+    description: Absolute path of the server log.
+    value: ${{ steps.boot.outputs.log-path }}
+runs:
+  using: composite
+  steps:
+    - name: Boot the server
+      id: boot
+      shell: bash
+      env:
+        SB_DIR: ${{ inputs.server-dir }}
+        SB_COMMAND: ${{ inputs.start-command }}
+        SB_TIMEOUT: ${{ inputs.timeout-seconds }}
+        SB_READY: ${{ inputs.ready-pattern }}
+        SB_FAIL: ${{ inputs.fail-patterns }}
+        SB_EXPECT: ${{ inputs.expect-pattern }}
+        SB_LOG: ${{ inputs.log-file }}
+        SB_PIDFILE: ${{ runner.temp }}/server-boot.pid
+      run: '"$GITHUB_ACTION_PATH/boot.sh"'
+    # Runs even when the boot step fails or the job is cancelled, so no server outlives the job.
+    - name: Kill leftover server processes
+      if: always()
+      shell: bash
+      env:
+        SB_PIDFILE: ${{ runner.temp }}/server-boot.pid
+      run: |
+        [ -f "$SB_PIDFILE" ] || exit 0
+        pid=$(cat "$SB_PIDFILE")
+        kill -TERM -- "-$pid" 2>/dev/null || true
+        sleep 2
+        kill -KILL -- "-$pid" 2>/dev/null || true
+        rm -f "$SB_PIDFILE"
