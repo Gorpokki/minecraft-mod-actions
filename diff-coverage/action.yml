@@ -33,7 +33,7 @@ runs:
         FAIL_UNDER: ${{ inputs.fail-under }}
         DIFF_COVER_VERSION: ${{ inputs.diff-cover-version }}
       run: |
-        read -ra roots <<< "$SRC_ROOTS"
+        read -r -d '' -a roots <<< "$SRC_ROOTS" || true
         rc=0
         pipx run --spec "diff-cover==${DIFF_COVER_VERSION}" diff-cover "$REPORT" \
           --compare-branch="$COMPARE_BRANCH" --src-roots "${roots[@]}" --fail-under="$FAIL_UNDER" || rc=$?

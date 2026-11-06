@@ -23,16 +23,15 @@ def git(*args):
 
 
 def complexity(analyzer, rev, path):
-    """Map each function name in one file to its [(CCN, cognitive), start line] versions."""
+    """Map each function signature in one file to its [(CCN, cognitive), start line] versions."""
     try:
         source = git('show', f'{rev}:{path}')
     except subprocess.CalledProcessError:
         return {}
     functions = {}
     for function in analyzer.analyze_source_code(path, source).function_list:
-        name = function.name.split('(', 1)[0].strip()
         scores = (function.cyclomatic_complexity, function.cognitive_complexity)
-        functions.setdefault(name, []).append((scores, function.start_line))
+        functions.setdefault(function.long_name, []).append((scores, function.start_line))
     return functions
 
 

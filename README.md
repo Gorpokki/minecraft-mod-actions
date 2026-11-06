@@ -41,7 +41,7 @@ jobs:
 
 Your repository supplies the configs the jobs read: `.qlty/qlty.toml` and `.qlty/configs/` (including the PMD rule set), `.vale.ini`, and the Gradle tasks you name in the inputs. See the comments at the top of `quality.yml` for every input.
 
-Set `changed-lines-only: true` to gate only changed lines, for example on a pull request that merges upstream code.
+Set `changed-lines-only: true` to gate only changed lines, for example on a pull request that merges upstream code. Vale prose checks every Markdown file in both modes.
 
 ### Pin by full commit SHA
 

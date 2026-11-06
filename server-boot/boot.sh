@@ -35,7 +35,7 @@ if [ "$result" != ready ]; then
   finish "$result" 1
 fi
 
-echo stop >&3
+(echo stop >&3) 2>/dev/null || true
 for _ in $(seq 1 120); do
   kill -0 "$server" 2>/dev/null || break
   sleep 1

@@ -4,7 +4,7 @@ name: Quality checks
 # `pull_request`: the changed-lines mode compares against the pull request's base branch.
 #
 # By default every check fails on any finding in the whole repository. Set changed-lines-only to gate only the
-# lines a pull request changes, for example on a pull request that merges code from upstream.
+# lines a pull request changes, for example on a pull request that merges code from upstream. Vale prose always checks every Markdown file.
 #
 # Jobs: code (Qlty lint and smells, complexity ratchet, poutine), workflows (zizmor), java (tests, coverage,
 # mutation score) and prose (Vale).
@@ -257,5 +257,5 @@ jobs:
           reporter: local
           fail_level: any
           min_alert_level: suggestion
-          filter_mode: ${{ inputs.changed-lines-only && 'added' || 'nofilter' }}
+          filter_mode: nofilter
           files: all
