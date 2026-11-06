@@ -18,11 +18,13 @@ def java(int_decl='int x', var='x', overload_ifs=11, string_value=0):
             '}\n')
 
 
-def enum_java(y_ifs=0, y_return=0):
+def enum_java(y_ifs=0, y_return=0, simple_z=False):
     x_ifs = ''.join(f' if (x == {i}) {{ return {i}; }}' for i in range(11))
     y_body = ''.join(f' if (x == {i}) {{ return {i}; }}' for i in range(y_ifs))
+    z = '  Z { int g(int x) { return 0; } },\n' if simple_z else ''
     return ('enum E {\n'
             f'  X {{ int g(int x) {{{x_ifs} return 0; }} }},\n'
+            f'{z}'
             f'  Y {{ int g(int x) {{{y_body} return {y_return}; }} }};\n'
             '}\n')
 
@@ -74,6 +76,12 @@ class OverloadRatchetTest(unittest.TestCase):
     def test_unchanged_duplicate_signature_passes_when_sibling_changes(self):
         self.commit(enum_java(y_return=0))
         self.commit(enum_java(y_return=1))
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+
+    def test_unchanged_complex_duplicate_passes_when_simple_duplicate_is_added(self):
+        self.commit(enum_java())
+        self.commit(enum_java(simple_z=True))
         code, out = self.gate()
         self.assertEqual(0, code, out)
 

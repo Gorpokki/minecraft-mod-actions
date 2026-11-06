@@ -54,14 +54,16 @@ def complexity(analyzer, rev, path):
 
 def ratchet(metrics, path, name, versions, old_versions):
     """Report each metric where a function is new or worse and ends above its limit. A new function's old score is 0."""
-    if len(versions) == len(old_versions):
-        olds = [scores for scores, _ in old_versions]
-    else:
-        olds = [(0,) * len(metrics)] * len(versions)
-    return [f'{path}:{line}: {name} {metric} {was} -> {score} (max {limit})'
-            for (scores, line), old in zip(versions, olds)
-            for (metric, limit), score, was in zip(metrics, scores, old)
-            if score > max(limit, was)]
+    paired = [[0] * len(metrics) for _ in versions]
+    for m in range(len(metrics)):
+        olds = sorted((scores[m] for scores, _ in old_versions), reverse=True) + [0] * len(versions)
+        ranked = sorted(range(len(versions)), key=lambda i: versions[i][0][m], reverse=True)
+        for i, old in zip(ranked, olds):
+            paired[i][m] = old
+    return [f'{path}:{line}: {name} {metric} {paired[i][m]} -> {score} (max {limit})'
+            for i, (scores, line) in enumerate(versions)
+            for m, ((metric, limit), score) in enumerate(zip(metrics, scores))
+            if score > max(limit, paired[i][m])]
 
 
 def every_function(analyzer, metrics, pathspecs):
