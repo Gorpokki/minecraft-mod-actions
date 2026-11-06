@@ -1,0 +1,33 @@
+name: SARIF changed lines
+description: Fail on SARIF results, either all of them or only those that overlap a line changed since a base ref.
+inputs:
+  sarif-file:
+    description: Path of the SARIF file to gate.
+    required: true
+  base:
+    description: Base ref, such as origin/main. Empty fails on every result. The checkout needs full history.
+    default: ''
+  skip-overridden-rules:
+    description: Rule ids, one per line. A result of these rules is ignored when the flagged declaration is annotated @Override.
+    default: ''
+outputs:
+  findings:
+    description: Number of results that fail the gate.
+    value: ${{ steps.gate.outputs.findings }}
+runs:
+  using: composite
+  steps:
+    - name: Gate SARIF results
+      id: gate
+      shell: bash
+      env:
+        SARIF_FILE: ${{ inputs.sarif-file }}
+        BASE: ${{ inputs.base }}
+        SKIP_RULES: ${{ inputs.skip-overridden-rules }}
+      run: |
+        args=(--sarif "$SARIF_FILE")
+        [ -z "$BASE" ] || args+=(--base "$BASE")
+        while IFS= read -r rule; do
+          [ -z "$rule" ] || args+=(--skip-overridden-rule "$rule")
+        done <<< "$SKIP_RULES"
+        python3 "$GITHUB_ACTION_PATH/sarif_changed_lines.py" "${args[@]}"

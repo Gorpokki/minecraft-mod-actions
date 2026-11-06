@@ -1,0 +1,45 @@
+name: Complexity ratchet
+description: Fail when a function is above a cyclomatic or cognitive complexity limit. Gate the whole repository, or only functions a pull request adds or worsens.
+inputs:
+  ccn-max:
+    description: Maximum cyclomatic complexity.
+    default: '10'
+  cognitive-max:
+    description: Maximum cognitive complexity.
+    default: '15'
+  pathspec:
+    description: git pathspecs of the files to check, one per line.
+    default: '*.java'
+  base:
+    description: Base ref, such as origin/main. Empty checks every function in the repository. The checkout needs full history.
+    default: ''
+  lizard-version:
+    description: Version of the lizard package to install with pip.
+    default: '1.24.1'
+outputs:
+  findings:
+    description: Number of functions above a limit.
+    value: ${{ steps.gate.outputs.findings }}
+runs:
+  using: composite
+  steps:
+    - name: Install lizard
+      shell: bash
+      env:
+        LIZARD_VERSION: ${{ inputs.lizard-version }}
+      run: python3 -m pip install --quiet "lizard==${LIZARD_VERSION}"
+    - name: Check complexity
+      id: gate
+      shell: bash
+      env:
+        CCN_MAX: ${{ inputs.ccn-max }}
+        COGNITIVE_MAX: ${{ inputs.cognitive-max }}
+        PATHSPEC: ${{ inputs.pathspec }}
+        BASE: ${{ inputs.base }}
+      run: |
+        args=(--ccn-max "$CCN_MAX" --cognitive-max "$COGNITIVE_MAX")
+        [ -z "$BASE" ] || args+=(--base "$BASE")
+        while IFS= read -r spec; do
+          [ -z "$spec" ] || args+=(--pathspec "$spec")
+        done <<< "$PATHSPEC"
+        python3 "$GITHUB_ACTION_PATH/lizard_gate.py" "${args[@]}"

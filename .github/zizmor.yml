@@ -1,0 +1,6 @@
+rules:
+  self-repository:
+    ignore:
+      # quality.yml checks out this repository's actions into .mma-actions for a caller's run.
+      # "$/" would point at the caller's repository, so the rule is a false positive here.
+      - quality.yml

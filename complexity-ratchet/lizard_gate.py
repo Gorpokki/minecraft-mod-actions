@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Fail when a function is above a cyclomatic (CCN) or cognitive complexity limit.
+
+CCN counts the paths through a function. Cognitive complexity (lizard -Ecognitive) counts how hard a function
+is to read: nesting costs more. A reviewed exception is a `// #lizard forgive` comment inside the function.
+
+Without --base, every function in every tracked file that matches the pathspecs is checked. With --base, only
+changed functions count: a function fails when it is new or got worse and ends above a limit. Function moves
+and renames count as new.
+
+Usage: lizard_gate.py [--base REF] [--ccn-max N] [--cognitive-max N] [--pathspec GLOB ...]
+"""
+import argparse
+import os
+import re
+import subprocess
+import sys
+
+import lizard
+
+
+def git(*args):
+    return subprocess.run(['git', *args], capture_output=True, text=True, check=True).stdout
+
+
+MODIFIERS = re.compile(r'\bfinal\b|@ [\w$]+(?: \. [\w$]+)*')
+PARAMETER_NAME = re.compile(r' [\w$]+((?: \[ \])*)$')
+
+
+def parameter_type(parameter):
+    """Type of one lizard parameter, without annotations, final, or the name."""
+    text = ' ' + MODIFIERS.sub(' ', parameter)
+    return ' '.join(PARAMETER_NAME.sub(r'\1', text).split())
+
+
+def signature(function):
+    """Name and parameter types, the identity of a function across revisions."""
+    types = (parameter_type(parameter) for parameter in function.full_parameters)
+    return f"{function.name}({', '.join(types)})"
+
+
+def complexity(analyzer, rev, path):
+    """Map each function signature in one file to its [(CCN, cognitive), start line] versions."""
+    try:
+        source = git('show', f'{rev}:{path}')
+    except subprocess.CalledProcessError:
+        return {}
+    functions = {}
+    for function in analyzer.analyze_source_code(path, source).function_list:
+        scores = (function.cyclomatic_complexity, function.cognitive_complexity)
+        functions.setdefault(signature(function), []).append((scores, function.start_line))
+    return functions
+
+
+def ratchet(metrics, path, name, versions, old_versions):
+    """Report each metric where a function is new or worse and ends above its limit. A new function's old score is 0."""
+    paired = [[0] * len(metrics) for _ in versions]
+    for m in range(len(metrics)):
+        olds = sorted((scores[m] for scores, _ in old_versions), reverse=True) + [0] * len(versions)
+        ranked = sorted(range(len(versions)), key=lambda i: versions[i][0][m], reverse=True)
+        for i, old in zip(ranked, olds):
+            paired[i][m] = old
+    return [f'{path}:{line}: {name} {metric} {paired[i][m]} -> {score} (max {limit})'
+            for i, (scores, line) in enumerate(versions)
+            for m, ((metric, limit), score) in enumerate(zip(metrics, scores))
+            if score > max(limit, paired[i][m])]
+
+
+def every_function(analyzer, metrics, pathspecs):
+    bad = []
+    for path in git('ls-files', '--', *pathspecs).splitlines():
+        for name, versions in complexity(analyzer, 'HEAD', path).items():
+            bad += ratchet(metrics, path, name, versions, ())
+    return bad
+
+
+def changed_functions(analyzer, metrics, pathspecs, base):
+    base = git('merge-base', base, 'HEAD').strip()
+    changes = git('diff', '--name-status', '--find-renames', '--diff-filter=AMR', base, 'HEAD', '--', *pathspecs)
+    bad = []
+    for status, *paths in (line.split('\t') for line in changes.splitlines()):
+        before, path = paths[0], paths[-1]
+        old = complexity(analyzer, base, before) if status[0] != 'A' else {}
+        for name, versions in complexity(analyzer, 'HEAD', path).items():
+            bad += ratchet(metrics, path, name, versions, old.get(name, ()))
+    return bad
+
+
+def main(argv):
+    parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    parser.add_argument('--base', default='', help='Base ref. Empty checks every function.')
+    parser.add_argument('--ccn-max', type=int, default=10)
+    parser.add_argument('--cognitive-max', type=int, default=15)
+    parser.add_argument('--pathspec', action='append', default=[], help='git pathspec; repeatable. Default *.java')
+    args = parser.parse_args(argv)
+    pathspecs = args.pathspec or ['*.java']
+    metrics = (('CCN', args.ccn_max), ('cognitive', args.cognitive_max))
+    analyzer = lizard.FileAnalyzer(lizard.get_extensions(['cognitive']))
+    if args.base:
+        bad = changed_functions(analyzer, metrics, pathspecs, args.base)
+    else:
+        bad = every_function(analyzer, metrics, pathspecs)
+    print('\n'.join(bad) or 'lizard gate: pass')
+    if bad:
+        print('Split the function, or add a reviewed `// #lizard forgive` comment inside it.')
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
+            out.write(f'findings={len(bad)}\n')
+    return 1 if bad else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))
