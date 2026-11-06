@@ -10,10 +10,11 @@ import lizard_gate
 METRICS = (('CCN', 10), ('cognitive', 15))
 
 
-def java(overload_ifs=11, string_value=0):
-    ifs = ''.join(f' if (x == {i}) {{ return {i}; }}' for i in range(overload_ifs))
+def java(overload_ifs=11, string_value=0, int_param='int x'):
+    var = int_param.split()[-1]
+    ifs = ''.join(f' if ({var} == {i}) {{ return {i}; }}' for i in range(overload_ifs))
     return ('class A {\n'
-            f'  int f(int x) {{{ifs} return 0; }}\n'
+            f'  int f({int_param}) {{{ifs} return 0; }}\n'
             f'  int f(String s) {{ return {string_value}; }}\n'
             '}\n')
 
@@ -41,6 +42,12 @@ class OverloadRatchetTest(unittest.TestCase):
     def test_unchanged_complex_overload_passes_when_sibling_overload_changes(self):
         self.commit(java(overload_ifs=11, string_value=0))
         self.commit(java(overload_ifs=11, string_value=1))
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+
+    def test_renamed_or_final_parameter_of_unchanged_complex_overload_passes(self):
+        self.commit(java(overload_ifs=11, int_param='int x'))
+        self.commit(java(overload_ifs=11, int_param='final int count'))
         code, out = self.gate()
         self.assertEqual(0, code, out)
 

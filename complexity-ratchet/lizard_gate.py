@@ -22,6 +22,13 @@ def git(*args):
     return subprocess.run(['git', *args], capture_output=True, text=True, check=True).stdout
 
 
+def signature(function):
+    """Name and parameter types, the identity of a function across revisions."""
+    types = (' '.join(token for token in parameter.split()[:-1] if token != 'final')
+             for parameter in function.full_parameters)
+    return f"{function.name}({', '.join(types)})"
+
+
 def complexity(analyzer, rev, path):
     """Map each function signature in one file to its [(CCN, cognitive), start line] versions."""
     try:
@@ -31,7 +38,7 @@ def complexity(analyzer, rev, path):
     functions = {}
     for function in analyzer.analyze_source_code(path, source).function_list:
         scores = (function.cyclomatic_complexity, function.cognitive_complexity)
-        functions.setdefault(function.long_name, []).append((scores, function.start_line))
+        functions.setdefault(signature(function), []).append((scores, function.start_line))
     return functions
 
 
