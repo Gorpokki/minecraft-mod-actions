@@ -10,11 +10,10 @@ import lizard_gate
 METRICS = (('CCN', 10), ('cognitive', 15))
 
 
-def java(overload_ifs=11, string_value=0, int_param='int x'):
-    var = int_param.split()[-1]
+def java(int_decl='int x', var='x', overload_ifs=11, string_value=0):
     ifs = ''.join(f' if ({var} == {i}) {{ return {i}; }}' for i in range(overload_ifs))
     return ('class A {\n'
-            f'  int f({int_param}) {{{ifs} return 0; }}\n'
+            f'  int f({int_decl}) {{{ifs} return 0; }}\n'
             f'  int f(String s) {{ return {string_value}; }}\n'
             '}\n')
 
@@ -46,8 +45,20 @@ class OverloadRatchetTest(unittest.TestCase):
         self.assertEqual(0, code, out)
 
     def test_renamed_or_final_parameter_of_unchanged_complex_overload_passes(self):
-        self.commit(java(overload_ifs=11, int_param='int x'))
-        self.commit(java(overload_ifs=11, int_param='final int count'))
+        self.commit(java(int_decl='int x', var='x'))
+        self.commit(java(int_decl='final int count', var='count'))
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+
+    def test_added_annotation_on_parameter_of_unchanged_complex_overload_passes(self):
+        self.commit(java(int_decl='int x', var='x'))
+        self.commit(java(int_decl='@Nullable int x', var='x'))
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+
+    def test_c_style_array_parameter_renamed_on_unchanged_complex_overload_passes(self):
+        self.commit(java(int_decl='int[] x', var='x'))
+        self.commit(java(int_decl='int count[]', var='count'))
         code, out = self.gate()
         self.assertEqual(0, code, out)
 

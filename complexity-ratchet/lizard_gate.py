@@ -12,6 +12,7 @@ Usage: lizard_gate.py [--base REF] [--head REF] [--ccn-max N] [--cognitive-max N
 """
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -22,10 +23,19 @@ def git(*args):
     return subprocess.run(['git', *args], capture_output=True, text=True, check=True).stdout
 
 
+MODIFIERS = re.compile(r'\bfinal\b|@ [\w$]+(?: \. [\w$]+)*')
+PARAMETER_NAME = re.compile(r' [\w$]+((?: \[ \])*)$')
+
+
+def parameter_type(parameter):
+    """Type of one lizard parameter, without annotations, final, or the name."""
+    text = ' ' + MODIFIERS.sub(' ', parameter)
+    return ' '.join(PARAMETER_NAME.sub(r'\1', text).split())
+
+
 def signature(function):
     """Name and parameter types, the identity of a function across revisions."""
-    types = (' '.join(token for token in parameter.split()[:-1] if token != 'final')
-             for parameter in function.full_parameters)
+    types = (parameter_type(parameter) for parameter in function.full_parameters)
     return f"{function.name}({', '.join(types)})"
 
 
