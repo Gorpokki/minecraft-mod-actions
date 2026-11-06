@@ -8,7 +8,7 @@ Without --base, every function in every tracked file that matches the pathspecs 
 changed functions count: a function fails when it is new or got worse and ends above a limit. Function moves
 and renames count as new.
 
-Usage: lizard_gate.py [--base REF] [--head REF] [--ccn-max N] [--cognitive-max N] [--pathspec GLOB ...]
+Usage: lizard_gate.py [--base REF] [--ccn-max N] [--cognitive-max N] [--pathspec GLOB ...]
 """
 import argparse
 import os
@@ -54,9 +54,12 @@ def complexity(analyzer, rev, path):
 
 def ratchet(metrics, path, name, versions, old_versions):
     """Report each metric where a function is new or worse and ends above its limit. A new function's old score is 0."""
-    old = old_versions[0][0] if len(versions) == len(old_versions) == 1 else (0,) * len(metrics)
+    if len(versions) == len(old_versions):
+        olds = [scores for scores, _ in old_versions]
+    else:
+        olds = [(0,) * len(metrics)] * len(versions)
     return [f'{path}:{line}: {name} {metric} {was} -> {score} (max {limit})'
-            for scores, line in versions
+            for (scores, line), old in zip(versions, olds)
             for (metric, limit), score, was in zip(metrics, scores, old)
             if score > max(limit, was)]
 
@@ -69,14 +72,14 @@ def every_function(analyzer, metrics, pathspecs):
     return bad
 
 
-def changed_functions(analyzer, metrics, pathspecs, base, head):
-    base = git('merge-base', base, head).strip()
-    changes = git('diff', '--name-status', '--find-renames', '--diff-filter=AMR', base, head, '--', *pathspecs)
+def changed_functions(analyzer, metrics, pathspecs, base):
+    base = git('merge-base', base, 'HEAD').strip()
+    changes = git('diff', '--name-status', '--find-renames', '--diff-filter=AMR', base, 'HEAD', '--', *pathspecs)
     bad = []
     for status, *paths in (line.split('\t') for line in changes.splitlines()):
         before, path = paths[0], paths[-1]
         old = complexity(analyzer, base, before) if status[0] != 'A' else {}
-        for name, versions in complexity(analyzer, head, path).items():
+        for name, versions in complexity(analyzer, 'HEAD', path).items():
             bad += ratchet(metrics, path, name, versions, old.get(name, ()))
     return bad
 
@@ -84,7 +87,6 @@ def changed_functions(analyzer, metrics, pathspecs, base, head):
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('--base', default='', help='Base ref. Empty checks every function.')
-    parser.add_argument('--head', default='HEAD')
     parser.add_argument('--ccn-max', type=int, default=10)
     parser.add_argument('--cognitive-max', type=int, default=15)
     parser.add_argument('--pathspec', action='append', default=[], help='git pathspec; repeatable. Default *.java')
@@ -93,7 +95,7 @@ def main(argv):
     metrics = (('CCN', args.ccn_max), ('cognitive', args.cognitive_max))
     analyzer = lizard.FileAnalyzer(lizard.get_extensions(['cognitive']))
     if args.base:
-        bad = changed_functions(analyzer, metrics, pathspecs, args.base, args.head)
+        bad = changed_functions(analyzer, metrics, pathspecs, args.base)
     else:
         bad = every_function(analyzer, metrics, pathspecs)
     print('\n'.join(bad) or 'lizard gate: pass')

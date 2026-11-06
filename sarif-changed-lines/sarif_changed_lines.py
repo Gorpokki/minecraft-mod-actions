@@ -5,7 +5,7 @@ Some tools report every finding in each changed file, so this script decides wha
 named by --skip-overridden-rule do not fail when the flagged declaration is annotated `@Override`, because an
 overriding method cannot change its parameters.
 
-Usage: sarif_changed_lines.py --sarif FILE|- [--base REF] [--skip-overridden-rule RULE ...]
+Usage: sarif_changed_lines.py --sarif FILE [--base REF] [--skip-overridden-rule RULE ...]
 """
 import argparse
 import json
@@ -78,15 +78,12 @@ def changed_since(base):
 
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    parser.add_argument('--sarif', required=True, help='SARIF file, or - for standard input.')
+    parser.add_argument('--sarif', required=True, help='SARIF file.')
     parser.add_argument('--base', default='', help='Base ref. Empty fails on every result.')
     parser.add_argument('--skip-overridden-rule', action='append', default=[])
     args = parser.parse_args(argv)
-    if args.sarif == '-':
-        sarif = json.load(sys.stdin)
-    else:
-        with open(args.sarif, encoding='utf-8') as source:
-            sarif = json.load(source)
+    with open(args.sarif, encoding='utf-8') as source:
+        sarif = json.load(source)
     if args.base:
         found = on_changed_lines(sarif, changed_since(args.base), args.skip_overridden_rule)
     else:

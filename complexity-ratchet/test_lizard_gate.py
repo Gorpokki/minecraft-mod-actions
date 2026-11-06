@@ -18,6 +18,15 @@ def java(int_decl='int x', var='x', overload_ifs=11, string_value=0):
             '}\n')
 
 
+def enum_java(y_ifs=0, y_return=0):
+    x_ifs = ''.join(f' if (x == {i}) {{ return {i}; }}' for i in range(11))
+    y_body = ''.join(f' if (x == {i}) {{ return {i}; }}' for i in range(y_ifs))
+    return ('enum E {\n'
+            f'  X {{ int g(int x) {{{x_ifs} return 0; }} }},\n'
+            f'  Y {{ int g(int x) {{{y_body} return {y_return}; }} }};\n'
+            '}\n')
+
+
 class OverloadRatchetTest(unittest.TestCase):
     def setUp(self):
         cwd = os.getcwd()
@@ -61,6 +70,19 @@ class OverloadRatchetTest(unittest.TestCase):
         self.commit(java(int_decl='int count[]', var='count'))
         code, out = self.gate()
         self.assertEqual(0, code, out)
+
+    def test_unchanged_duplicate_signature_passes_when_sibling_changes(self):
+        self.commit(enum_java(y_return=0))
+        self.commit(enum_java(y_return=1))
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+
+    def test_duplicate_signature_that_got_worse_fails(self):
+        self.commit(enum_java(y_ifs=0))
+        self.commit(enum_java(y_ifs=11))
+        code, out = self.gate()
+        self.assertEqual(1, code)
+        self.assertIn('E::g(int) CCN 1 -> 12', out)
 
     def test_changed_complex_overload_worse_than_before_fails(self):
         self.commit(java(overload_ifs=11))

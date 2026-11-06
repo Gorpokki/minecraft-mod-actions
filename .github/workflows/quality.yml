@@ -5,6 +5,7 @@ name: Quality checks
 #
 # By default every check fails on any finding in the whole repository. Set changed-lines-only to gate only the
 # lines a pull request changes, for example on a pull request that merges code from upstream. Vale prose always checks every Markdown file.
+# skip-overridden-rules lists the Qlty rules that are ignored on @Override methods (default qlty:function-parameters).
 #
 # Jobs: code (Qlty lint and smells, complexity ratchet, poutine), workflows (zizmor), java (tests, coverage,
 # mutation score) and prose (Vale).
@@ -84,6 +85,10 @@ on:
         description: Lowest Qlty issue level that fails the lint step.
         type: string
         default: low
+      skip-overridden-rules:
+        description: Qlty rule ids, one per line, whose results are ignored on @Override methods. Empty checks them there too.
+        type: string
+        default: qlty:function-parameters
 
 permissions:
   contents: read
@@ -158,7 +163,7 @@ jobs:
         with:
           sarif-file: ${{ runner.temp }}/smells.sarif
           base: ${{ inputs.changed-lines-only && env.BASE || '' }}
-          skip-overridden-rules: qlty:function-parameters
+          skip-overridden-rules: ${{ inputs.skip-overridden-rules }}
       # Lizard misreads some record declarations and then skips a file's functions.
       # Add complexity rules to the PMD config as a backup.
       - name: Fail functions above the complexity limits
