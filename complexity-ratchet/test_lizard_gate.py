@@ -156,7 +156,37 @@ class ExtensionTest(RepoTest):
         self.assertEqual(0, code, out.getvalue())
 
 
+def nested_builders(server_ifs, client_ifs):
+    def build(n):
+        return 'void build(int x) {' + ''.join(f' if (x == {i}) {{ return; }}' for i in range(n)) + ' }'
+    return ('class Config {\n'
+            f'  static class Server {{ static class Builder {{ {build(server_ifs)} }} }}\n'
+            f'  static class Client {{ static class Builder {{ {build(client_ifs)} }} }}\n'
+            '}\n')
+
+
+def namespaced_judges(n_ifs, m_ifs):
+    def judge(n):
+        return 'int Judge(int x) {' + ''.join(f' if (x == {i}) {{ return {i}; }}' for i in range(n)) + ' return 0; }'
+    return (f'namespace N {{ class A {{ {judge(n_ifs)} }} }}\n'
+            f'namespace M {{ class A {{ {judge(m_ifs)} }} }}\n')
+
+
 class QualifiedNameTest(RepoTest):
+    def test_nested_java_classes_with_same_method_name_are_not_paired_by_rank(self):
+        self.commit(**{'Config.java': nested_builders(server_ifs=4, client_ifs=18)})
+        self.commit(**{'Config.java': nested_builders(server_ifs=18, client_ifs=4)})
+        code, out = self.gate()
+        self.assertEqual(1, code, out)
+        self.assertIn('Config::Server::Builder::build(int) CCN 5 -> 19 (max 10)', out)
+
+    def test_same_class_name_in_two_csharp_namespaces_is_not_paired_by_rank(self):
+        self.commit(**{'A.cs': namespaced_judges(n_ifs=4, m_ifs=18)})
+        self.commit(**{'A.cs': namespaced_judges(n_ifs=18, m_ifs=4)})
+        code, out = self.gate()
+        self.assertEqual(1, code, out)
+        self.assertIn('N::A::Judge(int) CCN 5 -> 19 (max 10)', out)
+
     def test_same_method_name_in_two_classes_is_not_paired_by_rank(self):
         self.commit(**{'j.py': judges(a_ifs=18, b_ifs=4)})
         self.commit(**{'j.py': judges(a_ifs=4, b_ifs=18)})

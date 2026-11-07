@@ -59,9 +59,12 @@ def python_names(source):
 
 
 def signature(function):
-    """Name and parameter types. Lizard's long_name, minus parameter names, final, and annotations."""
+    """Qualified name and parameter types, minus parameter names, final, and annotations. long_name lacks the enum owner of an enum constant body, so name is used there."""
+    qualified = function.long_name.split('(')[0].strip()
+    if not qualified.endswith(function.name):
+        qualified = function.name
     types = (parameter_type(parameter) for parameter in function.full_parameters)
-    return f"{function.name}({', '.join(types)})"
+    return f"{qualified}({', '.join(types)})"
 
 
 def complexity(analyzer, rev, path):
