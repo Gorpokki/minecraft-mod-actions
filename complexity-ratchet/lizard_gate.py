@@ -53,13 +53,13 @@ def python_names(source):
 
     try:
         visit(ast.parse(source))
-    except SyntaxError:
+    except (SyntaxError, ValueError):
         pass
     return names
 
 
 def signature(function):
-    """Qualified name and parameter types. Lizard's long_name, minus parameter names, final, and annotations."""
+    """Name and parameter types. Lizard's long_name, minus parameter names, final, and annotations."""
     types = (parameter_type(parameter) for parameter in function.full_parameters)
     return f"{function.name}({', '.join(types)})"
 
@@ -74,8 +74,7 @@ def complexity(analyzer, rev, path):
     functions = {}
     for function in analyzer.analyze_source_code(path, source).function_list:
         scores = (function.cyclomatic_complexity, function.cognitive_complexity)
-        key = names.get(function.start_line) or (
-            f'{function.name}@{function.start_line}' if path.endswith('.py') else signature(function))
+        key = names.get(function.start_line) or signature(function)
         functions.setdefault(key, []).append((scores, function.start_line))
     return functions
 

@@ -171,6 +171,21 @@ class QualifiedNameTest(RepoTest):
         self.assertEqual(0, code, out)
 
 
+class UnparseablePythonTest(RepoTest):
+    def test_unchanged_function_in_unparseable_file_passes_when_line_above_moves(self):
+        body = ''.join(f'    if x == {i}:\n        return {i}\n' for i in range(11))
+        self.commit(**{'legacy.py': f'print "legacy"\ndef f(x):\n{body}    return 0\n'})
+        self.commit(**{'legacy.py': f'import os\nprint "legacy"\ndef f(x):\n{body}    return 0\n'})
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+
+    def test_null_byte_in_python_source_does_not_crash_the_gate(self):
+        self.commit(**{'nul.py': 'x = 1\x00\n'})
+        self.commit(**{'nul.py': 'x = 2\x00\n'})
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+
+
 class RatchetTest(unittest.TestCase):
     def test_new_function_above_limit_fails(self):
         self.assertEqual(1, len(lizard_gate.ratchet(METRICS, 'A.java', 'f', [((11, 0), 3)], ())))

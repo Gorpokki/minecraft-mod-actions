@@ -17,7 +17,7 @@ The checkout needs `fetch-depth: 0` when you set `base`.
 | `base` | empty | Base ref, such as `origin/main` |
 | `lizard-version` | `1.24.1` | Installed with pip |
 
-Functions are paired between base and head by identity: the AST-qualified name for Python (`A.judge`), lizard's qualified name plus parameter types for other languages. Two classes that both define `judge` are never mixed up.
+Functions are paired between base and head by identity: the AST-qualified name for Python (`A.judge`), lizard's qualified name plus parameter types for Java and C# (`A::judge`). Python files that `ast` cannot parse, and other languages such as JavaScript, use the bare name plus parameter types, so same-named functions in one file are paired by rank.
 
 Output: `findings`, the number of functions above a limit.
 
