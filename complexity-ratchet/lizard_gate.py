@@ -145,8 +145,8 @@ def main(argv):
     else:
         bad, checked, skipped = every_function(analyzer, metrics, pathspecs, extensions)
     print('\n'.join(bad) or 'lizard gate: pass')
-    if skipped and not checked:
-        print(f'lizard gate: skipped {skipped} file(s), none matched --extensions')
+    if skipped:
+        print(f'lizard gate: skipped {skipped} file(s) not matching --extensions')
     if bad:
         print('Split the function, or add a reviewed `// #lizard forgive` comment inside it.')
     if os.environ.get('GITHUB_OUTPUT'):

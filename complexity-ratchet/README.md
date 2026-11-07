@@ -5,7 +5,7 @@ Fails when a function is above a cyclomatic (CCN) or cognitive complexity limit,
 - Without `base`, every function in the files matched by `pathspec` is checked.
 - With `base`, a function fails only when it is new or got worse, and ends above a limit. Use this to gate a pull request that brings in code you did not write. Moves and renames count as new.
 - A reviewed exception is a `// #lizard forgive` comment inside the function.
-- `extensions` defaults to the source extensions the forks check. Set it to `*` to check every file `pathspec` matches. When no matched file has a listed extension, the gate prints how many files it skipped, so a pass is never silent.
+- `extensions` defaults to the source extensions the forks check. Set it to `*` to check every file `pathspec` matches. Whenever the gate skips a matched file, it prints how many, so a skip is never silent.
 
 The checkout needs `fetch-depth: 0` when you set `base`.
 

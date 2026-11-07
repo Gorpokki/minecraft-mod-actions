@@ -170,6 +170,13 @@ class ExtensionTest(RepoTest):
         self.assertEqual(0, code, out)
         self.assertIn('skipped 2', out)
 
+    def test_mixed_run_names_skipped_count(self):
+        self.commit(**{'a.py': 'x = 1\n'})
+        self.commit(**{'a.py': 'x = 2\n', 'notes.md': 'x\n'})
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+        self.assertIn('skipped 1', out)
+
 
 def nested_builders(server_ifs, client_ifs):
     def build(n):
