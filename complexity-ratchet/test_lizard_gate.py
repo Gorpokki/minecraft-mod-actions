@@ -165,6 +165,19 @@ def nested_builders(server_ifs, client_ifs):
             '}\n')
 
 
+def judge_after_nested(nested, ifs):
+    body = ''.join(f' if (x == {i}) {{ return {i}; }}' for i in range(ifs))
+    nest = 'static class S {}\n  ' if nested else ''
+    return f'class O {{\n  {nest}int judge(int x) {{{body} return 0; }}\n}}\n'
+
+
+def two_classes_after_nested(o_ifs, p_ifs):
+    def judge(n):
+        return 'int judge(int x) {' + ''.join(f' if (x == {i}) {{ return {i}; }}' for i in range(n)) + ' return 0; }'
+    return (f'class O {{ static class S {{}} {judge(o_ifs)} }}\n'
+            f'class P {{ static class S {{}} {judge(p_ifs)} }}\n')
+
+
 def namespaced_judges(n_ifs, m_ifs):
     def judge(n):
         return 'int Judge(int x) {' + ''.join(f' if (x == {i}) {{ return {i}; }}' for i in range(n)) + ' return 0; }'
@@ -179,6 +192,19 @@ class QualifiedNameTest(RepoTest):
         code, out = self.gate()
         self.assertEqual(1, code, out)
         self.assertIn('Config::Server::Builder::build(int) CCN 5 -> 19 (max 10)', out)
+
+    def test_unchanged_method_after_nested_class_passes_when_nested_class_is_added(self):
+        self.commit(**{'O.java': judge_after_nested(nested=False, ifs=13)})
+        self.commit(**{'O.java': judge_after_nested(nested=True, ifs=13)})
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+
+    def test_method_after_nested_class_is_not_paired_by_rank_with_sibling_class(self):
+        self.commit(**{'O.java': two_classes_after_nested(o_ifs=4, p_ifs=18)})
+        self.commit(**{'O.java': two_classes_after_nested(o_ifs=18, p_ifs=4)})
+        code, out = self.gate()
+        self.assertEqual(1, code, out)
+        self.assertIn('O::judge(int) CCN 5 -> 19 (max 10)', out)
 
     def test_same_class_name_in_two_csharp_namespaces_is_not_paired_by_rank(self):
         self.commit(**{'A.cs': namespaced_judges(n_ifs=4, m_ifs=18)})

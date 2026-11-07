@@ -59,9 +59,9 @@ def python_names(source):
 
 
 def signature(function):
-    """Qualified name and parameter types, minus parameter names, final, and annotations. long_name lacks the enum owner of an enum constant body, so name is used there."""
+    """Qualified name and parameter types, minus parameter names, final, and annotations. long_name gives the scope when it has one; name is used otherwise, since long_name omits the owner of a top-level enum constant body."""
     qualified = function.long_name.split('(')[0].strip()
-    if not qualified.endswith(function.name):
+    if '::' not in qualified:
         qualified = function.name
     types = (parameter_type(parameter) for parameter in function.full_parameters)
     return f"{qualified}({', '.join(types)})"
