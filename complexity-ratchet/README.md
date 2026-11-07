@@ -13,8 +13,11 @@ The checkout needs `fetch-depth: 0` when you set `base`.
 | `ccn-max` | `10` | Cyclomatic limit |
 | `cognitive-max` | `15` | Cognitive limit |
 | `pathspec` | `*.java` | git pathspecs, one per line |
+| `extensions` | `.py .js .cjs .cs .java` | File extensions to check, space separated. Other matched files are skipped |
 | `base` | empty | Base ref, such as `origin/main` |
 | `lizard-version` | `1.24.1` | Installed with pip |
+
+Functions are paired between base and head by identity: the AST-qualified name for Python (`A.judge`), lizard's qualified name plus parameter types for other languages. Two classes that both define `judge` are never mixed up.
 
 Output: `findings`, the number of functions above a limit.
 

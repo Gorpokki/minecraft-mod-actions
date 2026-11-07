@@ -10,6 +10,9 @@ inputs:
   pathspec:
     description: git pathspecs of the files to check, one per line.
     default: '*.java'
+  extensions:
+    description: File extensions to check, separated by spaces. Other changed files are skipped.
+    default: '.py .js .cjs .cs .java'
   base:
     description: Base ref, such as origin/main. Empty checks every function in the repository. The checkout needs full history.
     default: ''
@@ -36,10 +39,13 @@ runs:
         COGNITIVE_MAX: ${{ inputs.cognitive-max }}
         PATHSPEC: ${{ inputs.pathspec }}
         BASE: ${{ inputs.base }}
+        EXTENSIONS: ${{ inputs.extensions }}
       run: |
         args=(--ccn-max "$CCN_MAX" --cognitive-max "$COGNITIVE_MAX")
         [ -z "$BASE" ] || args+=(--base "$BASE")
         while IFS= read -r spec; do
           [ -z "$spec" ] || args+=(--pathspec "$spec")
         done <<< "$PATHSPEC"
+        read -r -a exts <<< "$EXTENSIONS"
+        [ ${#exts[@]} -eq 0 ] || args+=(--extensions "${exts[@]}")
         python3 "$GITHUB_ACTION_PATH/lizard_gate.py" "${args[@]}"
