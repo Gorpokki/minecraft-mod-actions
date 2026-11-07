@@ -155,6 +155,21 @@ class ExtensionTest(RepoTest):
             code = lizard_gate.main(['--pathspec', '.'])
         self.assertEqual(0, code, out.getvalue())
 
+    def test_star_extension_checks_every_matched_file(self):
+        self.commit(**{'a.py': 'x = 1\n'})
+        self.commit(**{'.github/workflows/server-boot.yml': WAIT_FOR})
+        code, out = self.gate('--extensions', '*')
+        self.assertEqual(1, code, out)
+        self.assertIn('wait_for() CCN 0 -> 13', out)
+        self.assertNotIn('skipped', out)
+
+    def test_pass_names_skipped_count_when_no_file_matches_extensions(self):
+        self.commit(**{'a.py': 'x = 1\n'})
+        self.commit(**{'.github/workflows/server-boot.yml': WAIT_FOR, 'notes.md': 'x\n'})
+        code, out = self.gate()
+        self.assertEqual(0, code, out)
+        self.assertIn('skipped 2', out)
+
 
 def nested_builders(server_ifs, client_ifs):
     def build(n):

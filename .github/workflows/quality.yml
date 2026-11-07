@@ -73,6 +73,10 @@ on:
         description: git pathspecs of the files the complexity ratchet checks, one per line.
         type: string
         default: '*.java'
+      extensions:
+        description: File extensions the complexity ratchet checks, separated by spaces. Use * to check every matched file.
+        type: string
+        default: '.py .js .cjs .cs .java'
       ccn-max:
         description: Maximum cyclomatic complexity per function.
         type: string
@@ -173,6 +177,7 @@ jobs:
           ccn-max: ${{ inputs.ccn-max }}
           cognitive-max: ${{ inputs.cognitive-max }}
           pathspec: ${{ inputs.pathspec }}
+          extensions: ${{ inputs.extensions }}
           base: ${{ inputs.changed-lines-only && env.BASE || '' }}
 
   workflows:

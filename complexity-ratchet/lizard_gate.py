@@ -96,28 +96,36 @@ def ratchet(metrics, path, name, versions, old_versions):
             if score > max(limit, paired[i][m])]
 
 
+def wanted(path, extensions):
+    return extensions is None or path.endswith(extensions)
+
+
 def every_function(analyzer, metrics, pathspecs, extensions):
-    bad = []
+    bad, checked, skipped = [], 0, 0
     for path in git('ls-files', '--', *pathspecs).splitlines():
-        if not path.endswith(extensions):
+        if not wanted(path, extensions):
+            skipped += 1
             continue
+        checked += 1
         for name, versions in complexity(analyzer, 'HEAD', path).items():
             bad += ratchet(metrics, path, name, versions, ())
-    return bad
+    return bad, checked, skipped
 
 
 def changed_functions(analyzer, metrics, pathspecs, base, extensions):
     base = git('merge-base', base, 'HEAD').strip()
     changes = git('diff', '--name-status', '--find-renames', '--diff-filter=AMR', base, 'HEAD', '--', *pathspecs)
-    bad = []
+    bad, checked, skipped = [], 0, 0
     for status, *paths in (line.split('\t') for line in changes.splitlines()):
         before, path = paths[0], paths[-1]
-        if not path.endswith(extensions):
+        if not wanted(path, extensions):
+            skipped += 1
             continue
+        checked += 1
         old = complexity(analyzer, base, before) if status[0] != 'A' else {}
         for name, versions in complexity(analyzer, 'HEAD', path).items():
             bad += ratchet(metrics, path, name, versions, old.get(name, ()))
-    return bad
+    return bad, checked, skipped
 
 
 def main(argv):
@@ -126,17 +134,19 @@ def main(argv):
     parser.add_argument('--ccn-max', type=int, default=10)
     parser.add_argument('--cognitive-max', type=int, default=15)
     parser.add_argument('--pathspec', action='append', default=[], help='git pathspec; repeatable. Default *.java')
-    parser.add_argument('--extensions', nargs='+', default=list(SOURCES), help='File extensions to check. Default: %(default)s')
+    parser.add_argument('--extensions', nargs='+', default=list(SOURCES), help="File extensions to check, or '*' for every matched file. Default: %(default)s")
     args = parser.parse_args(argv)
-    extensions = tuple(args.extensions)
+    extensions = None if '*' in args.extensions else tuple(args.extensions)
     pathspecs = args.pathspec or ['*.java']
     metrics = (('CCN', args.ccn_max), ('cognitive', args.cognitive_max))
     analyzer = lizard.FileAnalyzer(lizard.get_extensions(['cognitive']))
     if args.base:
-        bad = changed_functions(analyzer, metrics, pathspecs, args.base, extensions)
+        bad, checked, skipped = changed_functions(analyzer, metrics, pathspecs, args.base, extensions)
     else:
-        bad = every_function(analyzer, metrics, pathspecs, extensions)
+        bad, checked, skipped = every_function(analyzer, metrics, pathspecs, extensions)
     print('\n'.join(bad) or 'lizard gate: pass')
+    if skipped and not checked:
+        print(f'lizard gate: skipped {skipped} file(s), none matched --extensions')
     if bad:
         print('Split the function, or add a reviewed `// #lizard forgive` comment inside it.')
     if os.environ.get('GITHUB_OUTPUT'):
