@@ -11,7 +11,7 @@ inputs:
     description: git pathspecs of the files to check, one per line.
     default: '*.java'
   extensions:
-    description: File extensions to check, separated by spaces. Use * to check every matched file. Other matched files are skipped, and the gate says how many when none matched.
+    description: File extensions to check, separated by spaces. Use * to check every matched file. Other matched files are skipped, and the gate says how many.
     default: '.py .js .cjs .cs .java'
   base:
     description: Base ref, such as origin/main. Empty checks every function in the repository. The checkout needs full history.

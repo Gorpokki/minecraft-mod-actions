@@ -141,9 +141,9 @@ def main(argv):
     metrics = (('CCN', args.ccn_max), ('cognitive', args.cognitive_max))
     analyzer = lizard.FileAnalyzer(lizard.get_extensions(['cognitive']))
     if args.base:
-        bad, checked, skipped = changed_functions(analyzer, metrics, pathspecs, args.base, extensions)
+        bad, _checked, skipped = changed_functions(analyzer, metrics, pathspecs, args.base, extensions)
     else:
-        bad, checked, skipped = every_function(analyzer, metrics, pathspecs, extensions)
+        bad, _checked, skipped = every_function(analyzer, metrics, pathspecs, extensions)
     print('\n'.join(bad) or 'lizard gate: pass')
     if skipped:
         print(f'lizard gate: skipped {skipped} file(s) not matching --extensions')
