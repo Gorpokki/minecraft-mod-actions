@@ -8,9 +8,10 @@ Without --base, every function in every tracked file that matches the pathspecs 
 changed functions count: a function fails when it is new or got worse and ends above a limit. Function moves
 and renames count as new.
 
-Usage: lizard_gate.py [--base REF] [--ccn-max N] [--cognitive-max N] [--pathspec GLOB ...]
+Usage: lizard_gate.py [--base REF] [--ccn-max N] [--cognitive-max N] [--pathspec GLOB ...] [--extensions EXT ...]
 """
 import argparse
+import ast
 import os
 import re
 import subprocess
@@ -33,10 +34,37 @@ def parameter_type(parameter):
     return ' '.join(PARAMETER_NAME.sub(r'\1', text).split())
 
 
+SOURCES = ('.py', '.js', '.cjs', '.cs', '.java')
+
+
+def python_names(source):
+    """Map the start line of each Python function to its AST-qualified name, such as `A.judge`."""
+    names = {}
+
+    def visit(node, scopes=()):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                name = (*scopes, child.name)
+                if not isinstance(child, ast.ClassDef):
+                    names[child.lineno] = '.'.join(name)
+                visit(child, name)
+            else:
+                visit(child, scopes)
+
+    try:
+        visit(ast.parse(source))
+    except (SyntaxError, ValueError):
+        pass
+    return names
+
+
 def signature(function):
-    """Name and parameter types, the identity of a function across revisions."""
+    """Qualified name and parameter types, minus parameter names, final, and annotations. long_name gives the scope when it has one; name is used otherwise, since long_name omits the owner of a top-level enum constant body."""
+    qualified = function.long_name.split('(')[0].strip()
+    if '::' not in qualified:
+        qualified = function.name
     types = (parameter_type(parameter) for parameter in function.full_parameters)
-    return f"{function.name}({', '.join(types)})"
+    return f"{qualified}({', '.join(types)})"
 
 
 def complexity(analyzer, rev, path):
@@ -45,10 +73,12 @@ def complexity(analyzer, rev, path):
         source = git('show', f'{rev}:{path}')
     except subprocess.CalledProcessError:
         return {}
+    names = python_names(source) if path.endswith('.py') else {}
     functions = {}
     for function in analyzer.analyze_source_code(path, source).function_list:
         scores = (function.cyclomatic_complexity, function.cognitive_complexity)
-        functions.setdefault(signature(function), []).append((scores, function.start_line))
+        key = names.get(function.start_line) or signature(function)
+        functions.setdefault(key, []).append((scores, function.start_line))
     return functions
 
 
@@ -66,24 +96,36 @@ def ratchet(metrics, path, name, versions, old_versions):
             if score > max(limit, paired[i][m])]
 
 
-def every_function(analyzer, metrics, pathspecs):
-    bad = []
+def wanted(path, extensions):
+    return extensions is None or path.endswith(extensions)
+
+
+def every_function(analyzer, metrics, pathspecs, extensions):
+    bad, checked, skipped = [], 0, 0
     for path in git('ls-files', '--', *pathspecs).splitlines():
+        if not wanted(path, extensions):
+            skipped += 1
+            continue
+        checked += 1
         for name, versions in complexity(analyzer, 'HEAD', path).items():
             bad += ratchet(metrics, path, name, versions, ())
-    return bad
+    return bad, checked, skipped
 
 
-def changed_functions(analyzer, metrics, pathspecs, base):
+def changed_functions(analyzer, metrics, pathspecs, base, extensions):
     base = git('merge-base', base, 'HEAD').strip()
     changes = git('diff', '--name-status', '--find-renames', '--diff-filter=AMR', base, 'HEAD', '--', *pathspecs)
-    bad = []
+    bad, checked, skipped = [], 0, 0
     for status, *paths in (line.split('\t') for line in changes.splitlines()):
         before, path = paths[0], paths[-1]
+        if not wanted(path, extensions):
+            skipped += 1
+            continue
+        checked += 1
         old = complexity(analyzer, base, before) if status[0] != 'A' else {}
         for name, versions in complexity(analyzer, 'HEAD', path).items():
             bad += ratchet(metrics, path, name, versions, old.get(name, ()))
-    return bad
+    return bad, checked, skipped
 
 
 def main(argv):
@@ -92,15 +134,19 @@ def main(argv):
     parser.add_argument('--ccn-max', type=int, default=10)
     parser.add_argument('--cognitive-max', type=int, default=15)
     parser.add_argument('--pathspec', action='append', default=[], help='git pathspec; repeatable. Default *.java')
+    parser.add_argument('--extensions', nargs='+', default=list(SOURCES), help="File extensions to check, or '*' for every matched file. Default: %(default)s")
     args = parser.parse_args(argv)
+    extensions = None if '*' in args.extensions else tuple(args.extensions)
     pathspecs = args.pathspec or ['*.java']
     metrics = (('CCN', args.ccn_max), ('cognitive', args.cognitive_max))
     analyzer = lizard.FileAnalyzer(lizard.get_extensions(['cognitive']))
     if args.base:
-        bad = changed_functions(analyzer, metrics, pathspecs, args.base)
+        bad, _checked, skipped = changed_functions(analyzer, metrics, pathspecs, args.base, extensions)
     else:
-        bad = every_function(analyzer, metrics, pathspecs)
+        bad, _checked, skipped = every_function(analyzer, metrics, pathspecs, extensions)
     print('\n'.join(bad) or 'lizard gate: pass')
+    if skipped:
+        print(f'lizard gate: skipped {skipped} file(s) not matching --extensions')
     if bad:
         print('Split the function, or add a reviewed `// #lizard forgive` comment inside it.')
     if os.environ.get('GITHUB_OUTPUT'):
